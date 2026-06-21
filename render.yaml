@@ -3,7 +3,7 @@ services:
     name: peluqapp-backend
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && cd panel && npm ci && npm run build && cd .. && tsc
     startCommand: npm start
     healthCheckPath: /
     envVars:
