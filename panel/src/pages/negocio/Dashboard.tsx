@@ -168,7 +168,7 @@ export default function Dashboard() {
               <div className="mb-1 text-5xl font-bold text-black">{clientesMarketing.length}</div>
               <p className="max-w-xs text-sm text-[#444748]">Clientes que no agendaron ni escribieron durante el ultimo mes.</p>
             </div>
-            <button className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#735c00] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90" onClick={() => navigate("/negocio/marketing")}>
+            <button className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#735c00] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90" type="button">
               <Send size={17} /> Enviar cupon
             </button>
           </article>

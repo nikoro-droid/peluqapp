@@ -6,11 +6,7 @@ import Negocios from "./pages/superadmin/Negocios";
 import NegocioDetalle from "./pages/superadmin/NegocioDetalle";
 import Suscripciones from "./pages/superadmin/Suscripciones";
 import NegocioDashboard from "./pages/negocio/Dashboard";
-import Turnos from "./pages/negocio/Turnos";
-import Servicios from "./pages/negocio/Servicios";
-import Marketing from "./pages/negocio/Marketing";
 import Configuracion from "./pages/negocio/Configuracion";
-import Suscripcion from "./pages/negocio/Suscripcion";
 import type { ReactElement } from "react";
 import type { Rol } from "./types";
 
@@ -31,13 +27,8 @@ function Router() {
       <Route path="/admin/negocios/:id" element={<Guard rol="superadmin"><NegocioDetalle /></Guard>} />
       <Route path="/admin/suscripciones" element={<Guard rol="superadmin"><Suscripciones /></Guard>} />
       <Route path="/negocio" element={<Guard rol="negocio"><NegocioDashboard /></Guard>} />
-      <Route path="/negocio/agenda" element={<Guard rol="negocio"><Turnos /></Guard>} />
-      <Route path="/negocio/bot-respuestas" element={<Guard rol="negocio"><Servicios /></Guard>} />
-      <Route path="/negocio/marketing" element={<Guard rol="negocio"><Marketing /></Guard>} />
-      <Route path="/negocio/turnos" element={<Navigate to="/negocio/agenda" replace />} />
-      <Route path="/negocio/servicios" element={<Navigate to="/negocio/bot-respuestas" replace />} />
       <Route path="/negocio/configuracion" element={<Guard rol="negocio"><Configuracion /></Guard>} />
-      <Route path="/negocio/suscripcion" element={<Guard rol="negocio"><Suscripcion /></Guard>} />
+      <Route path="/negocio/*" element={<Navigate to="/negocio" replace />} />
       <Route path="*" element={<Navigate to={session?.rol === "superadmin" ? "/admin" : session ? "/negocio" : "/login"} replace />} />
     </Routes>
   );
