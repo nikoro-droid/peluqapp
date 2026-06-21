@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DB_DIR
-        value: /var/data
+        value: /tmp/peluqapp-db
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
@@ -29,10 +29,6 @@ services:
         sync: false
       - key: ALLOWED_ORIGIN
         value: https://peluqapp-panel.onrender.com
-    disk:
-      name: sqlite-data
-      mountPath: /var/data
-      sizeGB: 1
 
   - type: web
     name: peluqapp-panel
