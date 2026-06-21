@@ -166,6 +166,14 @@ app.post("/api/negocio/marketing/difusion", requireNegocio, async (req, res) => 
 });
 
 const panelDist = path.join(process.cwd(), "panel", "dist");
+app.use("/panel", (req, res, next) => {
+  if (!req.path.startsWith("/assets/")) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+  next();
+});
 app.use("/panel", express.static(panelDist));
 app.get("/panel/*", (_req, res) => res.sendFile(path.join(panelDist, "index.html")));
 app.get("/", (_req, res) => res.redirect("/panel"));
