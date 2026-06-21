@@ -26,7 +26,7 @@ export default function Login() {
     }
     const session = (await response.json()) as Session;
     login(session);
-    navigate(session.rol === "superadmin" ? "/admin" : "/negocio/agenda", { replace: true });
+    navigate(session.rol === "superadmin" ? "/admin" : "/negocio", { replace: true });
   }
 
   return (

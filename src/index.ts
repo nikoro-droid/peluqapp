@@ -136,6 +136,7 @@ app.get("/api/negocio/config", requireNegocio, (req, res) => res.json(db.getPubl
 app.patch("/api/negocio/config", requireNegocio, (req, res) => res.json(db.updateNegocio(req.user!.negocio_id!, req.body as Parameters<typeof db.updateNegocio>[1])));
 app.post("/api/negocio/config/password", requireNegocio, (req, res) => { const body = req.body as { password?: string }; if (!body.password || body.password.length < 8) { res.status(400).json({ error: "password_min_8" }); return; } db.setNegocioPassword(req.user!.negocio_id!, body.password); res.json({ ok: true }); });
 app.get("/api/negocio/suscripcion", requireNegocio, (req, res) => { const id = req.user!.negocio_id!; res.json({ suscripcion: getSuscripcionActiva(id), dias_restantes: getDiasRestantes(id), turnos_usados_mes: getTurnosMes(id), pagos: db.listPagos(id) }); });
+app.get("/api/negocio/mensajes", requireNegocio, (req, res) => res.json(db.listMensajes(req.user!.negocio_id!, 120)));
 app.get("/api/negocio/marketing/clientes", requireNegocio, (req, res) => {
   const dias = typeof req.query.dias === "string" ? Number(req.query.dias) : 60;
   res.json(db.listClientesMarketing(req.user!.negocio_id!, Number.isFinite(dias) && dias > 0 ? dias : 60));
