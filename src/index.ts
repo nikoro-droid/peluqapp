@@ -44,6 +44,7 @@ async function handleIncoming(instance: string, from: string, body: string): Pro
   db.logMensaje(negocio.id, from, "saliente", respuesta);
 }
 
+app.get("/health", (_req, res) => res.json({ ok: true }));
 app.post("/api/auth/login", login);
 app.post("/webhook", (req: Request, res: Response) => {
   res.sendStatus(200);

@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: npm ci --include=dev && cd panel && npm ci --include=dev && npm run build && cd .. && tsc
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production

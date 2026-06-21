@@ -10,5 +10,5 @@ export default defineConfig({
       "/webhook": "http://localhost:3000"
     }
   },
-  base: "/panel/"
+  base: process.env.VITE_BASE_PATH ?? "/panel/"
 });
