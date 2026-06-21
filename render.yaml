@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: peluqapp-backend
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_DIR
+        value: /var/data
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EVOLUTION_API_URL
+        sync: false
+      - key: EVOLUTION_API_KEY
+        sync: false
+      - key: EVOLUTION_INSTANCE
+        sync: false
+      - key: ALLOWED_ORIGIN
+        value: https://peluqapp-panel.onrender.com
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: peluqapp-panel
+    runtime: static
+    buildCommand: cd panel && npm ci && npm run build
+    staticPublishPath: panel/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://peluqapp-backend.onrender.com
+      - key: VITE_BASE_PATH
+        value: /
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
