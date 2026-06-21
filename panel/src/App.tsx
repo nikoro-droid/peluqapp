@@ -8,6 +8,7 @@ import Suscripciones from "./pages/superadmin/Suscripciones";
 import NegocioDashboard from "./pages/negocio/Dashboard";
 import Turnos from "./pages/negocio/Turnos";
 import Servicios from "./pages/negocio/Servicios";
+import Marketing from "./pages/negocio/Marketing";
 import Configuracion from "./pages/negocio/Configuracion";
 import Suscripcion from "./pages/negocio/Suscripcion";
 import type { ReactElement } from "react";
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/negocio" element={<Guard rol="negocio"><NegocioDashboard /></Guard>} />
       <Route path="/negocio/agenda" element={<Guard rol="negocio"><Turnos /></Guard>} />
       <Route path="/negocio/bot-respuestas" element={<Guard rol="negocio"><Servicios /></Guard>} />
+      <Route path="/negocio/marketing" element={<Guard rol="negocio"><Marketing /></Guard>} />
       <Route path="/negocio/turnos" element={<Navigate to="/negocio/agenda" replace />} />
       <Route path="/negocio/servicios" element={<Navigate to="/negocio/bot-respuestas" replace />} />
       <Route path="/negocio/configuracion" element={<Guard rol="negocio"><Configuracion /></Guard>} />

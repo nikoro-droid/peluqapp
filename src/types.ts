@@ -119,3 +119,17 @@ export interface IncomingMessage {
   from: string;
   body: string;
 }
+
+export interface PagoConNegocio extends Pago {
+  negocio_nombre: string;
+  negocio_email: string;
+}
+
+export interface ClienteMarketing {
+  telefono: string;
+  nombre: string;
+  ultimo_turno: string | null;
+  ultimo_mensaje: string | null;
+  total_turnos: number;
+  total_gastado: number;
+}

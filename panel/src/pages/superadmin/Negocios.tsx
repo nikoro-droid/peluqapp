@@ -39,15 +39,15 @@ export default function Negocios() {
   return (
     <Layout mode="admin">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Negocios</h1>
+        <h1 className="text-xl font-semibold">Peluquerias</h1>
         <button className="btn btn-primary" onClick={() => setOpen(true)}>
-          <Plus size={16} /> Nuevo negocio
+          <Plus size={16} /> Nueva peluqueria
         </button>
       </div>
       <div className="overflow-hidden rounded-lg border border-line bg-white">
         <table className="table w-full">
           <thead>
-            <tr><th>Nombre</th><th>Email</th><th>Plan</th><th>Estado</th><th>Días</th><th>Turnos</th><th></th></tr>
+            <tr><th>Nombre</th><th>Email</th><th>Plan</th><th>Estado</th><th>Dias</th><th>Turnos</th><th></th></tr>
           </thead>
           <tbody>
             {negocios.map((negocio) => (
@@ -70,12 +70,12 @@ export default function Negocios() {
       {open ? (
         <div className="fixed inset-0 grid place-items-center bg-black/30 p-4">
           <form onSubmit={submit} className="grid w-full max-w-2xl gap-3 rounded-lg bg-white p-5">
-            <h2 className="font-semibold">Nuevo negocio</h2>
+            <h2 className="font-semibold">Nueva peluqueria</h2>
             <div className="grid gap-3 md:grid-cols-2">
               <input className="input" name="nombre" placeholder="Nombre" required />
               <input className="input" name="email" type="email" placeholder="Email" required />
-              <input className="input" name="password" placeholder="Contraseña temporal" required />
-              <input className="input" name="telefono_dueno" placeholder="Teléfono dueño" required />
+              <input className="input" name="password" placeholder="Contrasena temporal" required />
+              <input className="input" name="telefono_dueno" placeholder="Telefono dueno" required />
               <input className="input md:col-span-2" name="evolution_instance" placeholder="Evolution Instance" required />
               <select className="input" name="plan_id">{planes.map((plan) => <option key={plan.id} value={plan.id}>{plan.nombre}</option>)}</select>
               <input className="input" name="meses" type="number" defaultValue={1} min={1} />

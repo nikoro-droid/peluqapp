@@ -82,3 +82,26 @@ export interface MensajeLog {
   contenido: string | null;
   created_at: string;
 }
+
+export interface PagoConNegocio extends Pago {
+  negocio_id: number;
+  suscripcion_id: number;
+  negocio_nombre: string;
+  negocio_email: string;
+}
+
+export interface ContabilidadResumen {
+  peluquerias_activas: number;
+  ingresos_periodo: number;
+  facturacion_mensual_esperada: number;
+  pagos: PagoConNegocio[];
+}
+
+export interface ClienteMarketing {
+  telefono: string;
+  nombre: string;
+  ultimo_turno: string | null;
+  ultimo_mensaje: string | null;
+  total_turnos: number;
+  total_gastado: number;
+}

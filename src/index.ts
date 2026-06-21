@@ -90,6 +90,23 @@ app.post("/api/superadmin/negocios/:id/suscripcion", requireSuperadmin, (req, re
 app.post("/api/superadmin/negocios/:id/suspender", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } suspenderNegocio(id, "Panel"); res.json({ ok: true }); });
 app.post("/api/superadmin/negocios/:id/reactivar", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } reactivarNegocio(id); res.json({ ok: true }); });
 app.post("/api/superadmin/negocios/:id/pagos", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); const body = req.body as { suscripcion_id?: number; monto?: number; fecha_pago?: string; metodo?: string; referencia?: string; notas?: string }; if (!id || !body.suscripcion_id || !body.monto || !body.fecha_pago) { res.status(400).json({ error: "datos_invalidos" }); return; } res.status(201).json(db.createPago({ negocio_id: id, suscripcion_id: body.suscripcion_id, monto: body.monto, fecha_pago: body.fecha_pago, metodo: body.metodo ?? null, referencia: body.referencia ?? null, notas: body.notas ?? null })); });
+app.get("/api/superadmin/contabilidad", requireSuperadmin, (req, res) => {
+  const range = monthRange();
+  const desde = typeof req.query.desde === "string" ? req.query.desde : range.start;
+  const hasta = typeof req.query.hasta === "string" ? req.query.hasta : range.end;
+  res.json(db.getContabilidad(desde, hasta));
+});
+app.post("/api/superadmin/pagos", requireSuperadmin, (req, res) => {
+  const body = req.body as { negocio_id?: number; monto?: number; fecha_pago?: string; metodo?: string; referencia?: string; notas?: string };
+  if (!body.negocio_id || !body.monto || !body.fecha_pago) { res.status(400).json({ error: "datos_invalidos" }); return; }
+  let suscripcion = getSuscripcionActiva(body.negocio_id);
+  if (!suscripcion) {
+    renovarSuscripcion(body.negocio_id, 1, 1);
+    suscripcion = getSuscripcionActiva(body.negocio_id);
+  }
+  if (!suscripcion) { res.status(400).json({ error: "sin_suscripcion" }); return; }
+  res.status(201).json(db.createPago({ negocio_id: body.negocio_id, suscripcion_id: suscripcion.id, monto: Number(body.monto), fecha_pago: body.fecha_pago, metodo: body.metodo ?? null, referencia: body.referencia ?? null, notas: body.notas ?? null }));
+});
 
 app.get("/api/superadmin/negocios/:id/servicios", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } res.json(db.listServicios(id)); });
 app.post("/api/superadmin/negocios/:id/servicios", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); const body = req.body as { nombre?: string; duracion_min?: number; precio?: number; orden?: number }; if (!id || !body.nombre || !body.duracion_min || body.precio === undefined) { res.status(400).json({ error: "datos_invalidos" }); return; } res.status(201).json(db.createServicio(id, { nombre: body.nombre, duracion_min: Number(body.duracion_min), precio: Number(body.precio), orden: body.orden })); });
@@ -119,6 +136,33 @@ app.get("/api/negocio/config", requireNegocio, (req, res) => res.json(db.getPubl
 app.patch("/api/negocio/config", requireNegocio, (req, res) => res.json(db.updateNegocio(req.user!.negocio_id!, req.body as Parameters<typeof db.updateNegocio>[1])));
 app.post("/api/negocio/config/password", requireNegocio, (req, res) => { const body = req.body as { password?: string }; if (!body.password || body.password.length < 8) { res.status(400).json({ error: "password_min_8" }); return; } db.setNegocioPassword(req.user!.negocio_id!, body.password); res.json({ ok: true }); });
 app.get("/api/negocio/suscripcion", requireNegocio, (req, res) => { const id = req.user!.negocio_id!; res.json({ suscripcion: getSuscripcionActiva(id), dias_restantes: getDiasRestantes(id), turnos_usados_mes: getTurnosMes(id), pagos: db.listPagos(id) }); });
+app.get("/api/negocio/marketing/clientes", requireNegocio, (req, res) => {
+  const dias = typeof req.query.dias === "string" ? Number(req.query.dias) : 60;
+  res.json(db.listClientesMarketing(req.user!.negocio_id!, Number.isFinite(dias) && dias > 0 ? dias : 60));
+});
+app.post("/api/negocio/marketing/difusion", requireNegocio, async (req, res) => {
+  const body = req.body as { telefonos?: string[]; destinatarios?: Array<{ telefono?: string; nombre?: string }>; mensaje?: string };
+  const negocio = db.getNegocioById(req.user!.negocio_id!);
+  const destinatarios: Array<{ telefono: string; nombre?: string }> = Array.isArray(body.destinatarios)
+    ? body.destinatarios.filter((item): item is { telefono: string; nombre?: string } => Boolean(item.telefono))
+    : Array.isArray(body.telefonos)
+      ? body.telefonos.map((telefono) => ({ telefono }))
+      : [];
+  if (!negocio || !body.mensaje || destinatarios.length === 0) { res.status(400).json({ error: "datos_invalidos" }); return; }
+  const enviados: string[] = [];
+  const fallidos: Array<{ telefono: string; error: string }> = [];
+  for (const destinatario of destinatarios) {
+    const texto = body.mensaje.replace(/\{nombre\}/g, destinatario.nombre ?? "");
+    try {
+      await sendMessage(negocio.evolution_instance, destinatario.telefono, texto);
+      db.logMensaje(negocio.id, destinatario.telefono, "saliente", `[marketing] ${texto}`);
+      enviados.push(destinatario.telefono);
+    } catch (error) {
+      fallidos.push({ telefono: destinatario.telefono, error: error instanceof Error ? error.message : "error_desconocido" });
+    }
+  }
+  res.json({ enviados, fallidos });
+});
 
 const panelDist = path.join(process.cwd(), "panel", "dist");
 app.use("/panel", express.static(panelDist));

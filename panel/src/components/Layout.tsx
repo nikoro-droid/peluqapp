@@ -1,18 +1,19 @@
-import { Bot, CalendarDays, CreditCard, LayoutDashboard, LogOut, Scissors, Settings, Store } from "lucide-react";
+import { Bot, CalendarDays, CreditCard, LayoutDashboard, LogOut, Megaphone, Scissors, Settings, Store } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 const adminLinks = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/negocios", label: "Negocios", icon: Store },
-  { to: "/admin/suscripciones", label: "Pagos", icon: CreditCard }
+  { to: "/admin/negocios", label: "Peluquerias", icon: Store },
+  { to: "/admin/suscripciones", label: "Contabilidad", icon: CreditCard }
 ];
 
 const negocioLinks = [
   { to: "/negocio", label: "Dashboard", icon: LayoutDashboard },
   { to: "/negocio/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/negocio/bot-respuestas", label: "Bot de respuestas", icon: Bot },
+  { to: "/negocio/marketing", label: "Marketing", icon: Megaphone },
   { to: "/negocio/configuracion", label: "Configuracion", icon: Settings },
   { to: "/negocio/suscripcion", label: "Mi Plan", icon: CreditCard }
 ];

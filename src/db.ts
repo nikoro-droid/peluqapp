@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import bcrypt from "bcrypt";
-import type { Bloqueo, Conversacion, MensajeLog, Negocio, Pago, Plan, PublicNegocio, Servicio, Suscripcion, SuscripcionConPlan, SuscripcionEstado, Turno } from "./types";
+import type { Bloqueo, ClienteMarketing, Conversacion, MensajeLog, Negocio, Pago, PagoConNegocio, Plan, PublicNegocio, Servicio, Suscripcion, SuscripcionConPlan, SuscripcionEstado, Turno } from "./types";
 
 const dbDir = process.env.DB_DIR ?? path.join(process.cwd(), "db");
 const dbPath = path.join(dbDir, "database.sqlite");
@@ -138,13 +138,10 @@ export function initDB(): void {
     );
   `);
 
-  const count = db.prepare("SELECT COUNT(*) total FROM planes").get() as { total: number };
-  if (count.total === 0) {
-    const insert = db.prepare("INSERT INTO planes (nombre, precio_mensual, limite_turnos_mes, descripcion) VALUES (?, ?, ?, ?)");
-    insert.run("Basico", 2990, 100, "Hasta 100 turnos por mes");
-    insert.run("Pro", 5990, 500, "Hasta 500 turnos por mes");
-    insert.run("Ilimitado", 9990, null, "Turnos ilimitados");
-  }
+  db.prepare("INSERT INTO planes (id,nombre,precio_mensual,limite_turnos_mes,descripcion) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET nombre = excluded.nombre, precio_mensual = excluded.precio_mensual, limite_turnos_mes = excluded.limite_turnos_mes, descripcion = excluded.descripcion")
+    .run("Plan unico", 30000, null, "Plan mensual sin limites");
+  db.prepare("UPDATE suscripciones SET plan_id = 1 WHERE plan_id <> 1").run();
+  db.prepare("DELETE FROM planes WHERE id <> 1").run();
 
   const negocios = db.prepare("SELECT id FROM negocios").all() as Array<{ id: number }>;
   negocios.forEach((negocio) => seedServiciosBaseFor(db, negocio.id));
@@ -204,7 +201,7 @@ export const db = {
     return this.getServicioById(id);
   },
   deleteServicio(id: number): void { connection().prepare("UPDATE servicios SET activo = 0 WHERE id = ?").run(id); },
-  listPlanes(): Plan[] { return connection().prepare("SELECT * FROM planes ORDER BY precio_mensual ASC").all() as Plan[]; },
+  listPlanes(): Plan[] { return connection().prepare("SELECT * FROM planes ORDER BY id ASC").all() as Plan[]; },
   getPlan(id: number): Plan | null { return (connection().prepare("SELECT * FROM planes WHERE id = ?").get(id) as Plan | undefined) ?? null; },
   createPlan(input: Omit<Plan, "id">): Plan {
     const result = connection().prepare("INSERT INTO planes (nombre,precio_mensual,limite_turnos_mes,descripcion) VALUES (?, ?, ?, ?)").run(input.nombre, input.precio_mensual, input.limite_turnos_mes, input.descripcion);
@@ -230,6 +227,12 @@ export const db = {
     if (allowed.length) connection().prepare(`UPDATE suscripciones SET ${allowed.map(([key]) => `${key} = ?`).join(", ")} WHERE id = ?`).run(...allowed.map(([, value]) => value), id);
     return (connection().prepare("SELECT s.*, p.nombre plan_nombre, p.precio_mensual, p.limite_turnos_mes, p.descripcion FROM suscripciones s JOIN planes p ON p.id = s.plan_id WHERE s.id = ?").get(id) as SuscripcionConPlan | undefined) ?? null;
   },
+  listPagosGlobal(desde: string, hasta: string): PagoConNegocio[] { return connection().prepare("SELECT p.*, n.nombre negocio_nombre, n.email negocio_email FROM pagos p JOIN negocios n ON n.id = p.negocio_id WHERE p.fecha_pago BETWEEN ? AND ? ORDER BY p.fecha_pago DESC, p.id DESC").all(desde, hasta) as PagoConNegocio[]; },
+  getContabilidad(desde: string, hasta: string): { peluquerias_activas: number; ingresos_periodo: number; facturacion_mensual_esperada: number; pagos: PagoConNegocio[] } {
+    const active = (connection().prepare("SELECT COUNT(*) total FROM negocios WHERE activo = 1").get() as { total: number }).total;
+    const ingresos = (connection().prepare("SELECT COALESCE(SUM(monto), 0) total FROM pagos WHERE fecha_pago BETWEEN ? AND ?").get(desde, hasta) as { total: number }).total;
+    return { peluquerias_activas: active, ingresos_periodo: ingresos, facturacion_mensual_esperada: active * 30000, pagos: this.listPagosGlobal(desde, hasta) };
+  },
   listPagos(negocioId: number): Pago[] { return connection().prepare("SELECT * FROM pagos WHERE negocio_id = ? ORDER BY fecha_pago DESC, id DESC").all(negocioId) as Pago[]; },
   createPago(input: Omit<Pago, "id" | "created_at">): Pago {
     const result = connection().prepare("INSERT INTO pagos (negocio_id,suscripcion_id,monto,fecha_pago,metodo,referencia,notas) VALUES (?, ?, ?, ?, ?, ?, ?)").run(input.negocio_id, input.suscripcion_id, input.monto, input.fecha_pago, input.metodo, input.referencia, input.notas);
@@ -251,5 +254,26 @@ export const db = {
   getConversacion(negocioId: number, telefono: string): Conversacion | null { return (connection().prepare("SELECT * FROM conversaciones WHERE negocio_id = ? AND telefono_cliente = ?").get(negocioId, telefono) as Conversacion | undefined) ?? null; },
   upsertConversacion(negocioId: number, telefono: string, historial: string): void { connection().prepare("INSERT INTO conversaciones (negocio_id,telefono_cliente,historial,updated_at) VALUES (?, ?, ?, datetime('now')) ON CONFLICT(negocio_id,telefono_cliente) DO UPDATE SET historial = excluded.historial, updated_at = datetime('now')").run(negocioId, telefono, historial); },
   logMensaje(negocioId: number | null, telefono: string | null, direccion: "entrante" | "saliente", contenido: string): void { connection().prepare("INSERT INTO mensajes_log (negocio_id,telefono,direccion,contenido) VALUES (?, ?, ?, ?)").run(negocioId, telefono, direccion, contenido); },
-  listMensajes(negocioId: number, limit = 50): MensajeLog[] { return connection().prepare("SELECT * FROM mensajes_log WHERE negocio_id = ? ORDER BY id DESC LIMIT ?").all(negocioId, limit) as MensajeLog[]; }
+  listMensajes(negocioId: number, limit = 50): MensajeLog[] { return connection().prepare("SELECT * FROM mensajes_log WHERE negocio_id = ? ORDER BY id DESC LIMIT ?").all(negocioId, limit) as MensajeLog[]; },
+  listClientesMarketing(negocioId: number, diasSinContacto: number): ClienteMarketing[] {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - diasSinContacto);
+    const cutoffDate = cutoff.toISOString().slice(0, 10);
+    const clientes = connection().prepare(`
+      SELECT
+        t.telefono_cliente telefono,
+        COALESCE((SELECT tt.nombre_cliente FROM turnos tt WHERE tt.negocio_id = t.negocio_id AND tt.telefono_cliente = t.telefono_cliente ORDER BY tt.fecha DESC, tt.hora DESC LIMIT 1), t.nombre_cliente) nombre,
+        MAX(t.fecha) ultimo_turno,
+        MAX(CASE WHEN m.direccion = 'entrante' THEN substr(m.created_at, 1, 10) ELSE NULL END) ultimo_mensaje,
+        COUNT(t.id) total_turnos,
+        SUM(CASE WHEN t.estado = 'confirmado' THEN COALESCE(t.servicio_precio, 0) ELSE 0 END) total_gastado
+      FROM turnos t
+      LEFT JOIN mensajes_log m ON m.negocio_id = t.negocio_id AND m.telefono = t.telefono_cliente
+      WHERE t.negocio_id = ?
+      GROUP BY t.telefono_cliente
+      HAVING COALESCE(ultimo_mensaje, ultimo_turno) <= ?
+      ORDER BY COALESCE(ultimo_mensaje, ultimo_turno) ASC
+    `).all(negocioId, cutoffDate) as ClienteMarketing[];
+    return clientes;
+  }
 };
