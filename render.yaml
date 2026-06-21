@@ -3,7 +3,7 @@ services:
     name: peluqapp-backend
     runtime: node
     plan: free
-    buildCommand: npm ci && cd panel && npm ci && npm run build && cd .. && tsc
+    buildCommand: npm ci --include=dev && cd panel && npm ci --include=dev && npm run build && cd .. && tsc
     startCommand: npm start
     healthCheckPath: /
     envVars:
@@ -33,7 +33,7 @@ services:
   - type: web
     name: peluqapp-panel
     runtime: static
-    buildCommand: cd panel && npm ci && npm run build
+    buildCommand: cd panel && npm ci --include=dev && npm run build
     staticPublishPath: panel/dist
     envVars:
       - key: VITE_API_URL
