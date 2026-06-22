@@ -1,4 +1,4 @@
-import { Bell, CreditCard, LayoutDashboard, LogOut, Scissors, Search, Settings, Store } from "lucide-react";
+import { Bell, CalendarDays, CreditCard, LayoutDashboard, LogOut, Scissors, Search, Settings, Store } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -38,9 +38,13 @@ function TopShell({ children, mode }: { children: ReactNode; mode: "admin" | "ne
             })}
           </nav>
         ) : (
-          <div className="hidden w-72 items-center rounded-full border border-[#c4c7c7] bg-white px-3 py-2 md:flex">
-            <Search size={17} className="mr-2 text-[#747878]" />
-            <input className="w-full border-none bg-transparent p-0 text-sm outline-none placeholder:text-[#747878] focus:ring-0" placeholder="Buscar cliente, turno..." />
+          <div className="hidden items-center gap-2 rounded-full border border-[#c4c7c7] bg-white p-1 lg:flex">
+            <NavLink to="/negocio" end className={({ isActive }) => `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${isActive ? "bg-black text-white" : "text-[#444748] hover:bg-[#eeeeee]"}`}>
+              <LayoutDashboard size={16} /> Panel
+            </NavLink>
+            <NavLink to="/negocio/agenda" className={({ isActive }) => `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${isActive ? "bg-black text-white" : "text-[#444748] hover:bg-[#eeeeee]"}`}>
+              <CalendarDays size={16} /> Agenda
+            </NavLink>
           </div>
         )}
 
