@@ -88,8 +88,8 @@ export default function Agenda() {
 
   return (
     <Layout mode="negocio">
-      <div className="-mx-4 -mt-8 min-h-[calc(100vh-4rem)] bg-[#f9f9f9] pb-24 md:hidden">
-        <section className="sticky top-16 z-30 border-b border-[#e2e2e2] bg-white px-4 pb-2 pt-4">
+      <div className="-mx-4 -mt-6 min-h-screen bg-[#f9f9f9] pb-24 md:hidden">
+        <section className="sticky top-0 z-30 border-b border-[#e2e2e2] bg-white px-4 pb-2 pt-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-semibold capitalize text-black">{monthLabel(fecha)}</h1>
