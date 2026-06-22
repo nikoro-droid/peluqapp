@@ -14,6 +14,9 @@ function evolutionConfig(): { baseUrl: string; apiKey: string } {
   const baseUrl = process.env.EVOLUTION_API_URL ?? "http://localhost:8080";
   const apiKey = process.env.EVOLUTION_API_KEY;
   if (!apiKey) throw new Error("EVOLUTION_API_KEY no configurada");
+  if (process.env.RAILWAY_ENVIRONMENT && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(baseUrl)) {
+    throw new Error("EVOLUTION_API_URL apunta a localhost dentro de Railway. Configura una URL publica de Evolution API o un servicio interno accesible.");
+  }
   return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey };
 }
 
