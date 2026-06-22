@@ -70,7 +70,7 @@ export default function Dashboard() {
 
   return (
     <Layout mode="negocio">
-      <div className="mx-auto max-w-[560px] lg:max-w-[760px]">
+      <div className="md:hidden">
         <section className="grid grid-cols-2 gap-4">
           <article className="col-span-2 flex h-32 flex-col justify-between rounded-xl border border-black bg-black p-6 text-white">
             <div className="flex items-start justify-between">
@@ -79,7 +79,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="truncate text-xl font-semibold">{proximo?.nombre_cliente ?? "Sin turnos"}</p>
-              <p className="text-xs font-semibold text-[#858383]">{proximo ? `${proximo.hora} - ${proximo.servicio_nombre ?? "Servicio"}` : "Agenda libre"}</p>
+              <p className="text-xs font-semibold text-[#858383]">{proximo ? `${proximo.hora} · ${proximo.servicio_nombre ?? "Servicio"}` : "Agenda libre"}</p>
             </div>
           </article>
           <article className="flex h-28 flex-col justify-between rounded-xl border border-[#c4c7c7] bg-white p-4">
@@ -158,7 +158,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <div className="hidden">
+      <div className="hidden md:block">
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-black md:text-4xl">Resumen del dia</h1>
