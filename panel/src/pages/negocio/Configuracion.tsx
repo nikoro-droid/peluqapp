@@ -12,6 +12,15 @@ interface SuscripcionData {
   pagos: Pago[];
 }
 
+interface EvolutionQrData {
+  instance: string;
+  state: string | null;
+  connected: boolean;
+  qr: string | null;
+  pairingCode: string | null;
+  count: number | null;
+}
+
 const dias = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 
 export default function Configuracion() {
@@ -21,6 +30,9 @@ export default function Configuracion() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [saved, setSaved] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
+  const [evolution, setEvolution] = useState<EvolutionQrData | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   useEffect(() => {
     void api<Negocio>("/api/negocio/config").then(setConfig).catch(console.error);
@@ -60,13 +72,42 @@ export default function Configuracion() {
     window.setTimeout(() => setPasswordSaved(false), 1800);
   }
 
+  async function refreshQr() {
+    setQrLoading(true);
+    setQrError(null);
+    try {
+      setEvolution(await api<EvolutionQrData>("/api/negocio/evolution/qr"));
+    } catch (error) {
+      setQrError(error instanceof Error ? error.message : "No se pudo obtener el QR");
+    } finally {
+      setQrLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshQr();
+  }, []);
+
+  const connectionLabel = evolution?.connected ? "Conectado" : evolution?.state ? `Estado: ${evolution.state}` : "Pendiente";
+  const connectionDot = evolution?.connected ? "bg-emerald-500" : "bg-[#fed65b]";
+  const qrContent = evolution?.connected ? (
+    <div className="grid h-48 w-48 place-items-center rounded border border-emerald-200 bg-emerald-50 text-center text-sm font-semibold text-emerald-700">WhatsApp conectado</div>
+  ) : evolution?.qr ? (
+    <img className="h-48 w-48 rounded border border-[#c4c7c7] bg-white object-contain" src={evolution.qr} alt="QR de conexion de WhatsApp" />
+  ) : (
+    <div className="relative grid h-48 w-48 place-items-center overflow-hidden rounded border border-[#c4c7c7] bg-[#eeeeee]">
+      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "repeating-linear-gradient(45deg, #000 0 8px, transparent 8px 16px)", backgroundSize: "24px 24px" }} />
+      <QrCode size={56} className="relative text-[#747878]" />
+    </div>
+  );
+
   return (
     <Layout mode="negocio">
       <div className="md:hidden space-y-4 pb-8">
         <section className="overflow-hidden rounded-xl border border-[#c4c7c7] bg-white p-6">
-          <div className="mb-4 flex items-start justify-between gap-3"><div><h1 className="text-xl font-bold text-black">Configuracion</h1><p className="mt-1 text-sm text-[#444748]">WhatsApp, plan, horarios y servicios del agente.</p></div><span className="inline-flex items-center gap-1 rounded-full bg-[#fed65b] px-2 py-1 text-xs font-semibold text-[#745c00]"><span className="h-2 w-2 rounded-full bg-[#745c00]" /> Activo</span></div>
-          <div className="flex flex-col items-center justify-center py-4"><div className="mb-4 rounded-xl border border-[#c4c7c7] bg-white p-4 shadow-sm"><div className="relative grid h-48 w-48 place-items-center overflow-hidden rounded border border-[#c4c7c7] bg-[#eeeeee]"><div className="absolute inset-0 opacity-20" style={{ backgroundImage: "repeating-linear-gradient(45deg, #000 0 8px, transparent 8px 16px)", backgroundSize: "24px 24px" }} /><QrCode size={56} className="relative text-[#747878]" /></div></div><p className="max-w-[220px] text-center text-xs font-semibold text-[#444748]">Instancia: {config?.evolution_instance ?? "sin configurar"}</p></div>
-          <button className="mt-3 w-full rounded-lg bg-black py-3 text-sm font-semibold text-white" type="button">Refrescar QR</button>
+          <div className="mb-4 flex items-start justify-between gap-3"><div><h1 className="text-xl font-bold text-black">Configuracion</h1><p className="mt-1 text-sm text-[#444748]">WhatsApp, plan, horarios y servicios del agente.</p></div><span className="inline-flex items-center gap-1 rounded-full bg-[#fed65b] px-2 py-1 text-xs font-semibold text-[#745c00]"><span className={`h-2 w-2 rounded-full ${connectionDot}`} /> {connectionLabel}</span></div>
+          <div className="flex flex-col items-center justify-center py-4"><div className="mb-4 rounded-xl border border-[#c4c7c7] bg-white p-4 shadow-sm">{qrContent}</div><p className="max-w-[220px] text-center text-xs font-semibold text-[#444748]">Instancia: {config?.evolution_instance ?? evolution?.instance ?? "sin configurar"}</p>{evolution?.pairingCode ? <p className="mt-2 rounded bg-[#eeeeee] px-2 py-1 text-xs font-bold text-black">Codigo: {evolution.pairingCode}</p> : null}{qrError ? <p className="mt-3 text-center text-xs font-semibold text-[#ba1a1a]">{qrError}</p> : null}</div>
+          <button className="mt-3 w-full rounded-lg bg-black py-3 text-sm font-semibold text-white disabled:opacity-60" type="button" onClick={refreshQr} disabled={qrLoading}>{qrLoading ? "Obteniendo QR..." : "Refrescar QR"}</button>
         </section>
         <section className="rounded-xl border border-[#c4c7c7] bg-white p-6"><h2 className="mb-3 text-xl font-bold text-black">Plan</h2><div className="flex items-center justify-between rounded-lg border border-[#c4c7c7]/50 bg-[#eeeeee] p-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-[#444748]">Plan actual</p><p className="font-bold text-black">{suscripcion?.suscripcion?.plan_nombre ?? "Plan unico"}</p><p className="text-sm text-[#444748]">$30000 / mes</p></div><span className="rounded-lg bg-[#fed65b] px-3 py-2 text-xs font-bold text-[#745c00]">Activo</span></div><p className="mt-3 text-sm text-[#444748]">Proxima renovacion: {suscripcion?.suscripcion?.fecha_vencimiento ?? "-"}</p></section>
         <form onSubmit={save} className="rounded-xl border border-[#c4c7c7] bg-white p-6"><div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold text-black">Horario de Atencion</h2><button className="text-sm font-semibold text-black" type="submit">Guardar</button></div><div className="mb-4 grid gap-3"><input className="input bg-[#f9f9f9]" name="nombre" defaultValue={config?.nombre} placeholder="Nombre del negocio" /><div className="grid grid-cols-3 gap-2"><input className="input bg-[#f9f9f9]" name="horario_apertura" type="time" defaultValue={config?.horario_apertura} /><input className="input bg-[#f9f9f9]" name="horario_cierre" type="time" defaultValue={config?.horario_cierre} /><input className="input bg-[#f9f9f9]" name="duracion_turno_min" type="number" min={5} step={5} defaultValue={config?.duracion_turno_min} /></div></div><div className="space-y-1">{dias.slice(0, 5).map((dia) => <div key={dia} className="flex items-center justify-between border-b border-[#c4c7c7]/30 py-2"><span className="w-20 text-sm font-medium">{dia.slice(0, 3)}</span><div className="flex items-center gap-3"><span className="rounded bg-[#eeeeee] px-2 py-1 text-xs font-semibold">{config?.horario_apertura ?? "--:--"} - {config?.horario_cierre ?? "--:--"}</span><span className="relative h-6 w-10 rounded-full bg-black"><span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" /></span></div></div>)}<div className="flex items-center justify-between py-2 opacity-60"><span className="w-20 text-sm font-medium">Dom</span><div className="flex items-center gap-3"><span className="text-sm italic text-[#444748]">Cerrado</span><span className="relative h-6 w-10 rounded-full bg-[#c4c7c7]"><span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white" /></span></div></div></div>{saved ? <div className="mt-3 text-sm text-emerald-700">Configuracion guardada</div> : null}</form>
@@ -91,20 +132,19 @@ export default function Configuracion() {
             </div>
             <div className="flex flex-col items-center bg-[#f9f9f9] p-6">
               <div className="mb-4 rounded-xl border border-[#c4c7c7] bg-white p-6 shadow-sm">
-                <div className="relative grid h-48 w-48 place-items-center overflow-hidden rounded border border-[#c4c7c7] bg-[#eeeeee]">
-                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "repeating-linear-gradient(45deg, #000 0 8px, transparent 8px 16px)", backgroundSize: "24px 24px" }} />
-                  <QrCode size={56} className="relative text-[#747878]" />
-                </div>
+                {qrContent}
               </div>
               <div className="mb-5 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span className="text-xs font-semibold uppercase text-[#444748]">Instancia: {config?.evolution_instance ?? "sin configurar"}</span>
+                <span className={`h-2 w-2 rounded-full ${connectionDot}`} />
+                <span className="text-xs font-semibold uppercase text-[#444748]">Instancia: {config?.evolution_instance ?? evolution?.instance ?? "sin configurar"} · {connectionLabel}</span>
               </div>
+              {evolution?.pairingCode ? <div className="mb-4 rounded-lg bg-[#eeeeee] px-3 py-2 text-sm font-bold text-black">Codigo de vinculacion: {evolution.pairingCode}</div> : null}
+              {qrError ? <div className="mb-4 rounded-lg border border-[#ffdad6] bg-[#fff7f6] px-3 py-2 text-center text-sm font-semibold text-[#ba1a1a]">{qrError}</div> : null}
               <div className="grid w-full gap-2">
-                <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-[#474746]" type="button">
-                  <Wifi size={17} /> Generar nuevo QR
+                <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-[#474746] disabled:opacity-60" type="button" onClick={refreshQr} disabled={qrLoading}>
+                  <Wifi size={17} /> {qrLoading ? "Obteniendo QR..." : "Generar nuevo QR"}
                 </button>
-                <p className="text-center text-xs text-[#747878]">El QR se obtiene desde Evolution API para esta instancia.</p>
+                <p className="text-center text-xs text-[#747878]">Escanealo desde WhatsApp &gt; Dispositivos vinculados. El QR se obtiene desde Evolution API para esta instancia.</p>
               </div>
             </div>
           </section>

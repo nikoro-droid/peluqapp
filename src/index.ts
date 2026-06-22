@@ -6,7 +6,7 @@ import { handleClientMessage } from "./claude";
 import { db, initDB } from "./db";
 import { handleOwnerMessage } from "./owner";
 import { getDiasRestantes, getSuscripcionActiva, getTurnosMes, reactivarNegocio, renovarSuscripcion, suspenderNegocio } from "./subscriptions";
-import { parseIncoming, sendMessage } from "./whatsapp";
+import { getEvolutionConnectionState, getEvolutionQr, parseIncoming, sendMessage } from "./whatsapp";
 
 dotenv.config();
 initDB();
@@ -34,6 +34,11 @@ function monthRange(): { start: string; end: string } {
   return { start: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10), end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10) };
 }
 function idParam(value: unknown): number | null { if (Array.isArray(value)) return null; const id = Number(value); return Number.isInteger(id) && id > 0 ? id : null; }
+function evolutionError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "evolution_error";
+  if (message.includes("fetch failed") || message.includes("ECONNREFUSED")) return "No se pudo conectar con Evolution API. Revisa EVOLUTION_API_URL y que el servidor este encendido.";
+  return message;
+}
 
 async function handleIncoming(instance: string, from: string, body: string): Promise<void> {
   const negocio = db.getNegocioByInstance(instance);
@@ -135,6 +140,24 @@ app.post("/api/negocio/bloqueos", requireNegocio, (req, res) => { const body = r
 app.get("/api/negocio/config", requireNegocio, (req, res) => res.json(db.getPublicNegocio(req.user!.negocio_id!)));
 app.patch("/api/negocio/config", requireNegocio, (req, res) => res.json(db.updateNegocio(req.user!.negocio_id!, req.body as Parameters<typeof db.updateNegocio>[1])));
 app.post("/api/negocio/config/password", requireNegocio, (req, res) => { const body = req.body as { password?: string }; if (!body.password || body.password.length < 8) { res.status(400).json({ error: "password_min_8" }); return; } db.setNegocioPassword(req.user!.negocio_id!, body.password); res.json({ ok: true }); });
+app.get("/api/negocio/evolution/status", requireNegocio, async (req, res) => {
+  const negocio = db.getNegocioById(req.user!.negocio_id!);
+  if (!negocio) { res.status(404).json({ error: "negocio_no_encontrado" }); return; }
+  try {
+    res.json(await getEvolutionConnectionState(negocio.evolution_instance));
+  } catch (error) {
+    res.status(502).json({ error: evolutionError(error) });
+  }
+});
+app.get("/api/negocio/evolution/qr", requireNegocio, async (req, res) => {
+  const negocio = db.getNegocioById(req.user!.negocio_id!);
+  if (!negocio) { res.status(404).json({ error: "negocio_no_encontrado" }); return; }
+  try {
+    res.json(await getEvolutionQr(negocio.evolution_instance));
+  } catch (error) {
+    res.status(502).json({ error: evolutionError(error) });
+  }
+});
 app.get("/api/negocio/suscripcion", requireNegocio, (req, res) => { const id = req.user!.negocio_id!; res.json({ suscripcion: getSuscripcionActiva(id), dias_restantes: getDiasRestantes(id), turnos_usados_mes: getTurnosMes(id), pagos: db.listPagos(id) }); });
 app.get("/api/negocio/mensajes", requireNegocio, (req, res) => res.json(db.listMensajes(req.user!.negocio_id!, 120)));
 app.get("/api/negocio/marketing/clientes", requireNegocio, (req, res) => {
