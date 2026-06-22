@@ -1,11 +1,30 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { DollarSign, Plus } from "lucide-react";
+import { CalendarDays, DollarSign, Plus, ReceiptText, TrendingUp, WalletCards } from "lucide-react";
 import Layout from "../../components/Layout";
 import { useApi } from "../../hooks/useApi";
 import type { ContabilidadResumen, Negocio, Plan } from "../../types";
 
 const today = new Date().toISOString().slice(0, 10);
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+
+function money(value: number): string {
+  return `$${Number(value || 0).toLocaleString("es-AR")}`;
+}
+
+function Metric({ label, value, icon: Icon, hint }: { label: string; value: string | number; icon: typeof DollarSign; hint?: string }) {
+  return (
+    <article className="flex h-32 flex-col justify-between rounded-lg border border-[#c4c7c7] bg-white p-6">
+      <div className="flex items-start justify-between">
+        <span className="text-xs font-semibold uppercase text-[#444748]">{label}</span>
+        <Icon size={20} className="text-[#747878]" />
+      </div>
+      <div>
+        <div className="text-3xl font-bold text-black md:text-4xl">{value}</div>
+        {hint ? <div className="mt-1 text-sm text-[#444748]">{hint}</div> : null}
+      </div>
+    </article>
+  );
+}
 
 export default function Suscripciones() {
   const api = useApi();
@@ -46,50 +65,59 @@ export default function Suscripciones() {
 
   return (
     <Layout mode="admin">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Contabilidad</h1>
-          <p className="mt-1 text-sm text-slate-500">Plan unico sin limites: $30000 mensual</p>
+          <h1 className="text-3xl font-semibold text-black md:text-4xl">Contabilidad</h1>
+          <p className="mt-1 text-base text-[#444748]">Cobros, facturacion esperada y plan unico mensual.</p>
         </div>
-        <div className="rounded-full bg-teal-50 px-3 py-2 text-sm font-medium text-brand">{planes[0]?.nombre ?? "Plan unico"}</div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-[#c4c7c7] bg-white px-4 py-2 text-sm font-semibold text-black">
+          <WalletCards size={17} /> {planes[0]?.nombre ?? "Plan unico"}: $30000
+        </div>
       </div>
 
-      <div className="mb-5 grid gap-3 md:grid-cols-4">
-        <div className="rounded-lg border border-line bg-white p-4"><div className="text-xs uppercase text-slate-500">Peluquerias activas</div><div className="mt-2 text-2xl font-semibold">{data?.peluquerias_activas ?? 0}</div></div>
-        <div className="rounded-lg border border-line bg-white p-4"><div className="text-xs uppercase text-slate-500">Facturacion esperada</div><div className="mt-2 text-2xl font-semibold">${data?.facturacion_mensual_esperada ?? 0}</div></div>
-        <div className="rounded-lg border border-line bg-white p-4"><div className="text-xs uppercase text-slate-500">Cobrado</div><div className="mt-2 text-2xl font-semibold">${data?.ingresos_periodo ?? 0}</div></div>
-        <div className="rounded-lg border border-line bg-white p-4"><div className="text-xs uppercase text-slate-500">Pendiente estimado</div><div className="mt-2 text-2xl font-semibold">${pendiente}</div></div>
-      </div>
+      <section className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-4">
+        <Metric label="Peluquerias activas" value={data?.peluquerias_activas ?? 0} icon={ReceiptText} />
+        <Metric label="Facturacion esperada" value={money(data?.facturacion_mensual_esperada ?? 0)} icon={TrendingUp} />
+        <Metric label="Cobrado" value={money(data?.ingresos_periodo ?? 0)} icon={DollarSign} />
+        <Metric label="Pendiente estimado" value={money(pendiente)} icon={CalendarDays} />
+      </section>
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_380px]">
-        <section className="rounded-lg border border-line bg-white p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="text-sm font-medium text-slate-700">Desde<input className="input mt-1" type="date" value={desde} onChange={(event) => setDesde(event.target.value)} /></label>
-            <label className="text-sm font-medium text-slate-700">Hasta<input className="input mt-1" type="date" value={hasta} onChange={(event) => setHasta(event.target.value)} /></label>
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+        <section className="overflow-hidden rounded-lg border border-[#c4c7c7] bg-white">
+          <div className="flex flex-col gap-3 border-b border-[#c4c7c7] bg-[#eeeeee] px-6 py-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-black">Movimientos</h2>
+              <p className="mt-1 text-sm text-[#444748]">Pagos registrados en el periodo seleccionado.</p>
+            </div>
+            <div className="flex gap-3">
+              <label className="text-xs font-semibold uppercase text-[#444748]">Desde<input className="input mt-1 bg-white" type="date" value={desde} onChange={(event) => setDesde(event.target.value)} /></label>
+              <label className="text-xs font-semibold uppercase text-[#444748]">Hasta<input className="input mt-1 bg-white" type="date" value={hasta} onChange={(event) => setHasta(event.target.value)} /></label>
+            </div>
           </div>
-          <div className="overflow-hidden rounded-lg border border-line">
-            <table className="table w-full">
-              <thead><tr><th>Fecha</th><th>Peluqueria</th><th>Monto</th><th>Metodo</th><th>Referencia</th><th>Notas</th></tr></thead>
-              <tbody>
-                {data?.pagos.map((pago) => <tr key={pago.id}><td>{pago.fecha_pago}</td><td>{pago.negocio_nombre}</td><td>${pago.monto}</td><td>{pago.metodo ?? "-"}</td><td>{pago.referencia ?? "-"}</td><td>{pago.notas ?? "-"}</td></tr>)}
-                {!data?.pagos.length ? <tr><td colSpan={6} className="py-8 text-center text-slate-500">No hay pagos en este periodo</td></tr> : null}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-[#f9f9f9] text-xs uppercase text-[#444748]"><tr><th className="px-4 py-3">Fecha</th><th className="px-4 py-3">Peluqueria</th><th className="px-4 py-3">Monto</th><th className="px-4 py-3">Metodo</th><th className="px-4 py-3">Referencia</th><th className="px-4 py-3">Notas</th></tr></thead>
+              <tbody className="divide-y divide-[#c4c7c7] text-sm">
+                {data?.pagos.map((pago) => <tr key={pago.id} className="hover:bg-[#f9f9f9]"><td className="px-4 py-4">{pago.fecha_pago}</td><td className="px-4 py-4 font-semibold text-black">{pago.negocio_nombre}</td><td className="px-4 py-4 font-semibold">{money(pago.monto)}</td><td className="px-4 py-4 text-[#444748]">{pago.metodo ?? "-"}</td><td className="px-4 py-4 text-[#444748]">{pago.referencia ?? "-"}</td><td className="px-4 py-4 text-[#444748]">{pago.notas ?? "-"}</td></tr>)}
+                {!data?.pagos.length ? <tr><td colSpan={6} className="px-4 py-10 text-center text-[#444748]">No hay pagos en este periodo</td></tr> : null}
               </tbody>
             </table>
           </div>
         </section>
 
-        <form onSubmit={createPago} className="rounded-lg border border-line bg-white p-4">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold"><DollarSign size={18} /> Registrar cobro</h2>
-          <select className="input mb-3" name="negocio_id" required>
+        <form onSubmit={createPago} className="rounded-lg border border-[#c4c7c7] bg-white p-6">
+          <h2 className="mb-1 flex items-center gap-2 text-xl font-semibold text-black"><DollarSign size={20} /> Registrar cobro</h2>
+          <p className="mb-5 text-sm text-[#444748]">Carga un pago manual para una peluqueria.</p>
+          <select className="input mb-3 bg-[#f9f9f9]" name="negocio_id" required>
             <option value="">Peluqueria</option>
             {peluquerias.map((negocio) => <option key={negocio.id} value={negocio.id}>{negocio.nombre}</option>)}
           </select>
-          <input className="input mb-3" name="monto" type="number" defaultValue={30000} min={1} required />
-          <input className="input mb-3" name="fecha_pago" type="date" defaultValue={today} required />
-          <input className="input mb-3" name="metodo" placeholder="Metodo" />
-          <input className="input mb-3" name="referencia" placeholder="Referencia" />
-          <textarea className="input mb-3" name="notas" placeholder="Notas" />
-          <button className="btn btn-primary w-full"><Plus size={16} /> Registrar</button>
+          <input className="input mb-3 bg-[#f9f9f9]" name="monto" type="number" defaultValue={30000} min={1} required />
+          <input className="input mb-3 bg-[#f9f9f9]" name="fecha_pago" type="date" defaultValue={today} required />
+          <input className="input mb-3 bg-[#f9f9f9]" name="metodo" placeholder="Metodo" />
+          <input className="input mb-3 bg-[#f9f9f9]" name="referencia" placeholder="Referencia" />
+          <textarea className="input mb-4 min-h-24 bg-[#f9f9f9]" name="notas" placeholder="Notas" />
+          <button className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white transition hover:bg-[#474746]"><Plus size={17} /> Registrar</button>
         </form>
       </div>
     </Layout>
