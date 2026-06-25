@@ -5,6 +5,7 @@ import { login, requireNegocio, requireSuperadmin } from "./auth";
 import { handleClientMessage } from "./claude";
 import { db, initDB } from "./db";
 import { handleOwnerMessage } from "./owner";
+import { crearTurnoSiDisponible, getSlotsByDate } from "./scheduler";
 import { getDiasRestantes, getSuscripcionActiva, getTurnosMes, reactivarNegocio, renovarSuscripcion, suspenderNegocio } from "./subscriptions";
 import { getEvolutionConnectionState, getEvolutionQr, parseIncoming, sendMessage } from "./whatsapp";
 
@@ -118,6 +119,11 @@ app.post("/api/superadmin/negocios/:id/servicios", requireSuperadmin, (req, res)
 app.patch("/api/superadmin/negocios/:id/servicios/:servicioId", requireSuperadmin, (req, res) => { const servicioId = idParam(req.params.servicioId); if (!servicioId) { res.status(400).json({ error: "id_invalido" }); return; } res.json(db.updateServicio(servicioId, req.body as Parameters<typeof db.updateServicio>[1])); });
 app.delete("/api/superadmin/negocios/:id/servicios/:servicioId", requireSuperadmin, (req, res) => { const servicioId = idParam(req.params.servicioId); if (!servicioId) { res.status(400).json({ error: "id_invalido" }); return; } db.deleteServicio(servicioId); res.json({ ok: true }); });
 
+// Rutas de bloqueos superadmin
+app.get("/api/superadmin/negocios/:id/bloqueos", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } res.json(db.listBloqueos(id)); });
+app.post("/api/superadmin/negocios/:id/bloqueos", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); const body = req.body as { fecha_inicio?: string; fecha_fin?: string; motivo?: string }; if (!id || !body.fecha_inicio || !body.fecha_fin) { res.status(400).json({ error: "datos_invalidos" }); return; } res.status(201).json(db.createBloqueo({ negocio_id: id, fecha_inicio: body.fecha_inicio, fecha_fin: body.fecha_fin, motivo: body.motivo ?? null })); });
+app.delete("/api/superadmin/negocios/:id/bloqueos/:bloqueoId", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); const bloqueoId = idParam(req.params.bloqueoId); if (!id || !bloqueoId) { res.status(400).json({ error: "id_invalido" }); return; } db.deleteBloqueo(id, bloqueoId); res.json({ ok: true }); });
+
 app.get("/api/superadmin/planes", requireSuperadmin, (_req, res) => res.json(db.listPlanes()));
 app.post("/api/superadmin/planes", requireSuperadmin, (req, res) => res.status(201).json(db.createPlan(req.body as Parameters<typeof db.createPlan>[0])));
 app.patch("/api/superadmin/planes/:id", requireSuperadmin, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } res.json(db.updatePlan(id, req.body as Parameters<typeof db.updatePlan>[1])); });
@@ -131,12 +137,35 @@ app.get("/api/negocio/stats", requireNegocio, (req, res) => {
   res.json({ turnos_hoy: db.countTurnosConfirmados(negocioId, today(), today()), turnos_semana: db.countTurnosConfirmados(negocioId, today(), addDays(7)), turnos_mes: db.countTurnosConfirmados(negocioId, range.start, range.end), turnos_usados_mes: usados, limite_turnos_mes: limite, porcentaje_uso: limite ? Math.round((usados / limite) * 100) : 0, dias_restantes_suscripcion: getDiasRestantes(negocioId), estado_suscripcion: suscripcion?.estado ?? "sin_plan", nombre_plan: suscripcion?.plan_nombre ?? null });
 });
 app.get("/api/negocio/turnos", requireNegocio, (req, res) => { const fecha = typeof req.query.fecha === "string" ? req.query.fecha : today(); res.json(db.listTurnos(req.user!.negocio_id!, fecha, fecha)); });
+app.get("/api/negocio/slots", requireNegocio, (req, res) => {
+  const fecha = typeof req.query.fecha === "string" ? req.query.fecha : today();
+  const duracion = typeof req.query.duracion === "string" ? Number(req.query.duracion) : 30;
+  res.json(getSlotsByDate(req.user!.negocio_id!, fecha, Number.isFinite(duracion) && duracion > 0 ? duracion : 30));
+});
+app.post("/api/negocio/turnos", requireNegocio, (req, res) => {
+  const body = req.body as { nombre_cliente?: string; telefono_cliente?: string; fecha?: string; hora?: string; servicio_id?: number };
+  const negocio = db.getNegocioById(req.user!.negocio_id!);
+  if (!negocio || !body.nombre_cliente || !body.telefono_cliente || !body.fecha || !body.hora) { res.status(400).json({ error: "datos_invalidos" }); return; }
+  const result = crearTurnoSiDisponible(negocio, { nombre_cliente: body.nombre_cliente, telefono_cliente: body.telefono_cliente, fecha: body.fecha, hora: body.hora, servicio_id: body.servicio_id });
+  if (!result.turno) {
+    if (result.error === "suscripcion_vencida") { res.status(402).json({ error: "suscripcion_vencida", mensaje: "La suscripcion del negocio esta vencida. Contacta al administrador." }); return; }
+    if (result.error === "limite_alcanzado") { res.status(402).json({ error: "limite_alcanzado", mensaje: "Se alcanzo el limite de turnos del plan actual." }); return; }
+    if (result.error === "servicio_invalido") { res.status(400).json({ error: "servicio_invalido", mensaje: "El servicio seleccionado no es valido." }); return; }
+    res.status(409).json({ error: result.error ?? "no_disponible" }); return;
+  }
+  res.status(201).json(result.turno);
+});
 app.delete("/api/negocio/turnos/:id", requireNegocio, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } db.cancelTurno(req.user!.negocio_id!, id); res.json({ ok: true }); });
 app.get("/api/negocio/servicios", requireNegocio, (req, res) => res.json(db.listServicios(req.user!.negocio_id!)));
 app.post("/api/negocio/servicios", requireNegocio, (req, res) => { const body = req.body as { nombre?: string; duracion_min?: number; precio?: number; orden?: number }; if (!body.nombre || !body.duracion_min || body.precio === undefined) { res.status(400).json({ error: "datos_invalidos" }); return; } res.status(201).json(db.createServicio(req.user!.negocio_id!, { nombre: body.nombre, duracion_min: Number(body.duracion_min), precio: Number(body.precio), orden: body.orden })); });
 app.patch("/api/negocio/servicios/:id", requireNegocio, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } res.json(db.updateServicio(id, req.body as Parameters<typeof db.updateServicio>[1])); });
 app.delete("/api/negocio/servicios/:id", requireNegocio, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } db.deleteServicio(id); res.json({ ok: true }); });
+
+// Rutas de bloqueos negocio
+app.get("/api/negocio/bloqueos", requireNegocio, (req, res) => { res.json(db.listBloqueos(req.user!.negocio_id!)); });
 app.post("/api/negocio/bloqueos", requireNegocio, (req, res) => { const body = req.body as { fecha_inicio?: string; fecha_fin?: string; motivo?: string }; if (!body.fecha_inicio || !body.fecha_fin) { res.status(400).json({ error: "datos_invalidos" }); return; } res.status(201).json(db.createBloqueo({ negocio_id: req.user!.negocio_id!, fecha_inicio: body.fecha_inicio, fecha_fin: body.fecha_fin, motivo: body.motivo ?? null })); });
+app.delete("/api/negocio/bloqueos/:id", requireNegocio, (req, res) => { const id = idParam(req.params.id); if (!id) { res.status(400).json({ error: "id_invalido" }); return; } db.deleteBloqueo(req.user!.negocio_id!, id); res.json({ ok: true }); });
+
 app.get("/api/negocio/config", requireNegocio, (req, res) => res.json(db.getPublicNegocio(req.user!.negocio_id!)));
 app.patch("/api/negocio/config", requireNegocio, (req, res) => res.json(db.updateNegocio(req.user!.negocio_id!, req.body as Parameters<typeof db.updateNegocio>[1])));
 app.post("/api/negocio/config/password", requireNegocio, (req, res) => { const body = req.body as { password?: string }; if (!body.password || body.password.length < 8) { res.status(400).json({ error: "password_min_8" }); return; } db.setNegocioPassword(req.user!.negocio_id!, body.password); res.json({ ok: true }); });
@@ -160,6 +189,18 @@ app.get("/api/negocio/evolution/qr", requireNegocio, async (req, res) => {
 });
 app.get("/api/negocio/suscripcion", requireNegocio, (req, res) => { const id = req.user!.negocio_id!; res.json({ suscripcion: getSuscripcionActiva(id), dias_restantes: getDiasRestantes(id), turnos_usados_mes: getTurnosMes(id), pagos: db.listPagos(id) }); });
 app.get("/api/negocio/mensajes", requireNegocio, (req, res) => res.json(db.listMensajes(req.user!.negocio_id!, 120)));
+app.post("/api/negocio/mensajes", requireNegocio, async (req, res) => {
+  const body = req.body as { telefono?: string; mensaje?: string };
+  const negocio = db.getNegocioById(req.user!.negocio_id!);
+  if (!negocio || !body.telefono || !body.mensaje) { res.status(400).json({ error: "datos_invalidos" }); return; }
+  try {
+    await sendMessage(negocio.evolution_instance, body.telefono, body.mensaje);
+    db.logMensaje(negocio.id, body.telefono, "saliente", body.mensaje);
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    res.status(502).json({ error: evolutionError(error) });
+  }
+});
 app.get("/api/negocio/marketing/clientes", requireNegocio, (req, res) => {
   const dias = typeof req.query.dias === "string" ? Number(req.query.dias) : 60;
   res.json(db.listClientesMarketing(req.user!.negocio_id!, Number.isFinite(dias) && dias > 0 ? dias : 60));

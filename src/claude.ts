@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "./db";
-import { crearTurnoSiDisponible, getSlotsByDate } from "./scheduler";
+import { crearTurnoSiDisponible, describeHorarios, getSlotsByDate } from "./scheduler";
 import type { Negocio, Servicio } from "./types";
 
 type ChatMessage = { role: "user" | "model"; content: string };
@@ -24,7 +24,7 @@ export function buildSystemPrompt(negocio: Negocio): string {
   const servicios = db.getServicios(negocio.id);
   return [
     `Sos el asistente de turnos de ${negocio.nombre}.`,
-    `Horario de atencion: ${negocio.horario_apertura} a ${negocio.horario_cierre}.`,
+    `Horario de atencion: ${describeHorarios(negocio)}.`,
     `Trabajos aceptados y configurados:\n${servicios.map((servicio) => `- ${servicio.nombre}: $${servicio.precio}, ${servicio.duracion_min} minutos (id ${servicio.id})`).join("\n") || "No hay servicios cargados."}`,
     "Responde en espanol rioplatense, breve y claro.",
     "Usa solo los trabajos configurados para hablar de servicios aceptados, precios y duraciones.",
@@ -45,7 +45,7 @@ function buildRuntimeContext(negocio: Negocio, messages: ChatMessage[]): string 
   const serviciosConfigurados = servicios.map((serv) => `${serv.id}=${serv.nombre} ($${serv.precio}, ${serv.duracion_min} min)`).join("; ") || "ninguno";
   const lines = [
     `Fecha actual: ${new Date().toISOString().slice(0, 10)}.`,
-    `Horario de atencion configurado: ${negocio.horario_apertura} a ${negocio.horario_cierre}.`,
+    `Horario de atencion configurado: ${describeHorarios(negocio)}.`,
     `Trabajos configurados: ${serviciosConfigurados}.`
   ];
   if (servicio && fecha) lines.push(`Horarios reales para ${servicio.nombre} el ${fecha}: ${getSlotsByDate(negocio.id, fecha, servicio.duracion_min).join(", ") || "sin horarios"}.`);

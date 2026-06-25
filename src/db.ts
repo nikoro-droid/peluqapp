@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import bcrypt from "bcrypt";
-import type { Bloqueo, ClienteMarketing, Conversacion, MensajeLog, Negocio, Pago, PagoConNegocio, Plan, PublicNegocio, Servicio, Suscripcion, SuscripcionConPlan, SuscripcionEstado, Turno } from "./types";
+import type { Bloqueo, ClienteMarketing, Conversacion, HorariosSemana, MensajeLog, Negocio, Pago, PagoConNegocio, Plan, PublicNegocio, Servicio, Suscripcion, SuscripcionConPlan, SuscripcionEstado, Turno } from "./types";
 
 const dbDir = process.env.DB_DIR ?? path.join(process.cwd(), "db");
 const dbPath = path.join(dbDir, "database.sqlite");
@@ -41,8 +41,21 @@ function seedServiciosBaseFor(database: Database.Database, negocioId: number): v
   const insert = database.prepare("INSERT OR IGNORE INTO servicios (negocio_id,nombre,duracion_min,precio,orden) VALUES (?, ?, ?, ?, ?)");
   serviciosBasePeluqueria.forEach(([nombre, duracion, precio], index) => insert.run(negocioId, nombre, duracion, precio, index));
 }
+
+export function defaultHorariosSemana(apertura = "09:00", cierre = "19:00"): HorariosSemana {
+  return {
+    lunes: { activo: true, bloques: [{ apertura, cierre }] },
+    martes: { activo: true, bloques: [{ apertura, cierre }] },
+    miercoles: { activo: true, bloques: [{ apertura, cierre }] },
+    jueves: { activo: true, bloques: [{ apertura, cierre }] },
+    viernes: { activo: true, bloques: [{ apertura, cierre }] },
+    sabado: { activo: true, bloques: [{ apertura: "09:00", cierre: "13:00" }] },
+    domingo: { activo: false, bloques: [] }
+  };
+}
+
 function publicNegocioSelect(): string {
-  return "id,nombre,email,telefono_dueno,evolution_instance,horario_apertura,horario_cierre,duracion_turno_min,activo,created_at";
+  return "id,nombre,email,telefono_dueno,evolution_instance,horario_apertura,horario_cierre,horarios_json,duracion_turno_min,activo,created_at";
 }
 
 export function initDB(): void {
@@ -57,6 +70,7 @@ export function initDB(): void {
       evolution_instance TEXT NOT NULL UNIQUE,
       horario_apertura TEXT DEFAULT '09:00',
       horario_cierre TEXT DEFAULT '19:00',
+      horarios_json TEXT,
       duracion_turno_min INTEGER DEFAULT 30,
       activo INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now'))
@@ -138,6 +152,12 @@ export function initDB(): void {
     );
   `);
 
+  const negocioColumns = db.prepare("PRAGMA table_info(negocios)").all() as Array<{ name: string }>;
+  if (!negocioColumns.some((column) => column.name === "horarios_json")) {
+    db.prepare("ALTER TABLE negocios ADD COLUMN horarios_json TEXT").run();
+  }
+  db.prepare("UPDATE negocios SET horarios_json = ? WHERE horarios_json IS NULL OR horarios_json = ''").run(JSON.stringify(defaultHorariosSemana()));
+
   db.prepare("INSERT INTO planes (id,nombre,precio_mensual,limite_turnos_mes,descripcion) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET nombre = excluded.nombre, precio_mensual = excluded.precio_mensual, limite_turnos_mes = excluded.limite_turnos_mes, descripcion = excluded.descripcion")
     .run("Plan unico", 30000, null, "Plan mensual sin limites");
   db.prepare("UPDATE suscripciones SET plan_id = 1 WHERE plan_id <> 1").run();
@@ -154,7 +174,7 @@ export const db = {
   getNegocioByInstance(instance: string): Negocio | null { return (connection().prepare("SELECT * FROM negocios WHERE evolution_instance = ?").get(instance) as Negocio | undefined) ?? null; },
   getPublicNegocio(id: number): PublicNegocio | null { return (connection().prepare(`SELECT ${publicNegocioSelect()} FROM negocios WHERE id = ?`).get(id) as PublicNegocio | undefined) ?? null; },
   listNegocios(): PublicNegocio[] { return connection().prepare(`SELECT ${publicNegocioSelect()} FROM negocios ORDER BY created_at DESC`).all() as PublicNegocio[]; },
-  createNegocio(input: { nombre: string; email: string; password: string; telefono_dueno: string; evolution_instance: string; horario_apertura?: string; horario_cierre?: string; duracion_turno_min?: number }): PublicNegocio {
+  createNegocio(input: { nombre: string; email: string; password: string; telefono_dueno: string; evolution_instance: string; horario_apertura?: string; horario_cierre?: string; horarios_json?: string; duracion_turno_min?: number }): PublicNegocio {
     const raw = connection();
     const columns = raw.prepare("PRAGMA table_info(negocios)").all() as Array<{ name: string }>;
     const hasColumn = (name: string) => columns.some((column) => column.name === name);
@@ -166,6 +186,7 @@ export const db = {
       evolution_instance: input.evolution_instance.trim(),
       horario_apertura: input.horario_apertura ?? "09:00",
       horario_cierre: input.horario_cierre ?? "19:00",
+      horarios_json: input.horarios_json ?? JSON.stringify(defaultHorariosSemana(input.horario_apertura, input.horario_cierre)),
       duracion_turno_min: input.duracion_turno_min ?? 30
     };
     if (hasColumn("whatsapp_phone_id")) payload.whatsapp_phone_id = payload.evolution_instance;
@@ -176,7 +197,7 @@ export const db = {
     this.seedServiciosBase(id);
     return this.getPublicNegocio(id)!;
   },
-  updateNegocio(id: number, input: Partial<Pick<Negocio, "nombre" | "email" | "telefono_dueno" | "evolution_instance" | "horario_apertura" | "horario_cierre" | "duracion_turno_min" | "activo">>): PublicNegocio | null {
+  updateNegocio(id: number, input: Partial<Pick<Negocio, "nombre" | "email" | "telefono_dueno" | "evolution_instance" | "horario_apertura" | "horario_cierre" | "horarios_json" | "duracion_turno_min" | "activo">>): PublicNegocio | null {
     const allowed = Object.entries(input).filter((entry): entry is [string, string | number] => entry[1] !== undefined);
     if (allowed.length) connection().prepare(`UPDATE negocios SET ${allowed.map(([key]) => `${key} = ?`).join(", ")} WHERE id = ?`).run(...allowed.map(([, value]) => value), id);
     return this.getPublicNegocio(id);

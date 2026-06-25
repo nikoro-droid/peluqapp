@@ -1,20 +1,22 @@
-import { Trash2 } from "lucide-react";
 import type { Turno } from "../types";
 
-export default function TurnoRow({ turno, onCancel }: { turno: Turno; onCancel?: (id: number) => void }) {
+export default function TurnoRow({ turno }: { turno: Turno }) {
+  const estadoStyle: Record<string, string> = {
+    confirmado: "bg-emerald-50 text-emerald-700",
+    cancelado: "bg-[#ffdad6] text-[#ba1a1a]",
+    pendiente: "bg-[#fed65b]/30 text-[#745c00]"
+  };
+
   return (
-    <tr>
-      <td>{turno.hora}</td>
-      <td>{turno.nombre_cliente}</td>
-      <td>{turno.telefono_cliente}</td>
-      <td>{turno.servicio_nombre ? `${turno.servicio_nombre} - $${turno.servicio_precio ?? 0}` : "-"}</td>
-      <td>{turno.estado}</td>
-      <td className="text-right">
-        {onCancel && turno.estado !== "cancelado" ? (
-          <button className="btn btn-muted" title="Cancelar turno" onClick={() => onCancel(turno.id)}>
-            <Trash2 size={16} />
-          </button>
-        ) : null}
+    <tr className="hover:bg-[#f9f9f9]">
+      <td className="px-4 py-3">{turno.fecha}</td>
+      <td className="px-4 py-3 font-semibold">{turno.hora}</td>
+      <td className="px-4 py-3">{turno.nombre_cliente}</td>
+      <td className="px-4 py-3 text-[#444748]">{turno.servicio_nombre ?? "–"}</td>
+      <td className="px-4 py-3">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${estadoStyle[turno.estado] ?? "bg-[#eeeeee] text-[#444748]"}`}>
+          {turno.estado}
+        </span>
       </td>
     </tr>
   );

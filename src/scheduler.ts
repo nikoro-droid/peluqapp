@@ -1,6 +1,8 @@
 import { db } from "./db";
 import { canCrearTurno } from "./subscriptions";
-import type { Negocio, Turno } from "./types";
+import type { HorarioBloque, HorariosSemana, Negocio, Turno } from "./types";
+
+const dayKeys = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"] as const;
 
 function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(":").map(Number);
@@ -9,6 +11,50 @@ function timeToMinutes(time: string): number {
 
 function minutesToTime(minutes: number): string {
   return `${Math.floor(minutes / 60).toString().padStart(2, "0")}:${(minutes % 60).toString().padStart(2, "0")}`;
+}
+
+function defaultBlock(negocio: Negocio): HorarioBloque {
+  return { apertura: negocio.horario_apertura, cierre: negocio.horario_cierre };
+}
+
+export function getHorariosSemana(negocio: Negocio): HorariosSemana {
+  if (negocio.horarios_json) {
+    try {
+      const parsed = JSON.parse(negocio.horarios_json) as HorariosSemana;
+      return parsed;
+    } catch {
+      // Sigue usando el horario simple si hay configuracion vieja o corrupta.
+    }
+  }
+  return {
+    lunes: { activo: true, bloques: [defaultBlock(negocio)] },
+    martes: { activo: true, bloques: [defaultBlock(negocio)] },
+    miercoles: { activo: true, bloques: [defaultBlock(negocio)] },
+    jueves: { activo: true, bloques: [defaultBlock(negocio)] },
+    viernes: { activo: true, bloques: [defaultBlock(negocio)] },
+    sabado: { activo: true, bloques: [defaultBlock(negocio)] },
+    domingo: { activo: false, bloques: [] }
+  };
+}
+
+function bloquesForDate(negocio: Negocio, fecha: string): HorarioBloque[] {
+  const date = new Date(`${fecha}T00:00:00`);
+  const day = dayKeys[date.getDay()];
+  const horario = getHorariosSemana(negocio)[day];
+  if (!horario?.activo) return [];
+  return horario.bloques
+    .filter((bloque) => bloque.apertura && bloque.cierre && timeToMinutes(bloque.apertura) < timeToMinutes(bloque.cierre))
+    .sort((a, b) => a.apertura.localeCompare(b.apertura));
+}
+
+export function describeHorarios(negocio: Negocio): string {
+  const horarios = getHorariosSemana(negocio);
+  return (Object.entries(horarios) as Array<[string, { activo: boolean; bloques: HorarioBloque[] }]>)
+    .map(([dia, horario]) => {
+      if (!horario.activo || !horario.bloques.length) return `${dia}: cerrado`;
+      return `${dia}: ${horario.bloques.map((bloque) => `${bloque.apertura} a ${bloque.cierre}`).join(" y ")}`;
+    })
+    .join("; ");
 }
 
 function rangeFor(fecha: string, hora: string, duracionMin: number): { start: string; end: string } {
@@ -24,7 +70,8 @@ export function isSlotAvailable(negocioId: number, fecha: string, hora: string, 
   if (!negocio) return false;
   const start = timeToMinutes(hora);
   const end = start + duracionMin;
-  if (start < timeToMinutes(negocio.horario_apertura) || end > timeToMinutes(negocio.horario_cierre)) return false;
+  const insideBusinessHours = bloquesForDate(negocio, fecha).some((bloque) => start >= timeToMinutes(bloque.apertura) && end <= timeToMinutes(bloque.cierre));
+  if (!insideBusinessHours) return false;
   const slot = rangeFor(fecha, hora, duracionMin);
   const ocupado = db.listTurnos(negocioId, fecha, fecha)
     .filter((turno) => turno.estado === "confirmado")
@@ -40,9 +87,11 @@ export function getSlotsByDate(negocioId: number, fecha: string, duracionMin: nu
   const negocio = db.getNegocioById(negocioId);
   if (!negocio) return [];
   const slots: string[] = [];
-  for (let cursor = timeToMinutes(negocio.horario_apertura); cursor + duracionMin <= timeToMinutes(negocio.horario_cierre); cursor += negocio.duracion_turno_min) {
-    const hora = minutesToTime(cursor);
-    if (isSlotAvailable(negocioId, fecha, hora, duracionMin)) slots.push(hora);
+  for (const bloque of bloquesForDate(negocio, fecha)) {
+    for (let cursor = timeToMinutes(bloque.apertura); cursor + duracionMin <= timeToMinutes(bloque.cierre); cursor += negocio.duracion_turno_min) {
+      const hora = minutesToTime(cursor);
+      if (isSlotAvailable(negocioId, fecha, hora, duracionMin)) slots.push(hora);
+    }
   }
   return slots;
 }

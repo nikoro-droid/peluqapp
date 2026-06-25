@@ -9,10 +9,23 @@ export interface Negocio {
   evolution_instance: string;
   horario_apertura: string;
   horario_cierre: string;
+  horarios_json: string | null;
   duracion_turno_min: number;
   activo: number;
   created_at: string;
 }
+
+export interface HorarioBloque {
+  apertura: string;
+  cierre: string;
+}
+
+export interface HorarioDia {
+  activo: boolean;
+  bloques: HorarioBloque[];
+}
+
+export type HorariosSemana = Record<string, HorarioDia>;
 
 export type PublicNegocio = Omit<Negocio, "password_hash">;
 
